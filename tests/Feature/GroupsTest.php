@@ -1,5 +1,8 @@
 <?php
 
+use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
+use Illuminate\Contracts\Events\ShouldDispatchAfterCommit;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Event;
 use Phunky\LaravelMessaging\Models\Conversation;
 use Phunky\LaravelMessaging\Models\Participant;
@@ -204,5 +207,30 @@ describe('group events', function () {
         $groups->leave($group, $member);
 
         Event::assertDispatched(GroupParticipantLeft::class);
+    });
+});
+
+describe('broadcasting', function () {
+    it('exposes stable top-level group payload ids', function () {
+        Config::set('messaging.broadcasting.enabled', true);
+        Config::set('messaging.broadcasting.channel_prefix', 'messaging');
+
+        [$owner, $bob] = groupUsers();
+        $groups = app(GroupService::class);
+        $group = $groups->create($owner, 'Team chat');
+        $participant = $groups->invite($group, $owner, $bob);
+
+        $created = new GroupCreated($group, $owner);
+        $invited = new GroupParticipantInvited($group, $participant, $owner);
+
+        expect($created)->toBeInstanceOf(ShouldBroadcast::class)
+            ->toBeInstanceOf(ShouldDispatchAfterCommit::class)
+            ->and($created->broadcastWhen())->toBeTrue()
+            ->and($created->broadcastOn()[0]->name)->toBe('private-messaging.conversation.'.$group->conversation_id)
+            ->and($created->broadcastAs())->toBe(GroupCreated::BROADCAST_NAME)
+            ->and($created->broadcastWith()['conversation_id'])->toBe($group->conversation_id)
+            ->and($created->broadcastWith()['group_id'])->toBe($group->getKey())
+            ->and($invited->broadcastAs())->toBe(GroupParticipantInvited::BROADCAST_NAME)
+            ->and($invited->broadcastWith()['participant_id'])->toBe($participant->getKey());
     });
 });
