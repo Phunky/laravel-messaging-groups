@@ -226,7 +226,10 @@ describe('broadcasting', function () {
         expect($created)->toBeInstanceOf(ShouldBroadcast::class)
             ->toBeInstanceOf(ShouldDispatchAfterCommit::class)
             ->and($created->broadcastWhen())->toBeTrue()
-            ->and($created->broadcastOn()[0]->name)->toBe('private-messaging.conversation.'.$group->conversation_id)
+            ->and($created->broadcastOn()[0]->name)->toBeIn([
+                'private-messaging.conversation.'.$group->conversation_id,
+                'presence-messaging.conversation.'.$group->conversation_id,
+            ])
             ->and($created->broadcastAs())->toBe(GroupCreated::BROADCAST_NAME)
             ->and($created->broadcastWith()['conversation_id'])->toBe($group->conversation_id)
             ->and($created->broadcastWith()['group_id'])->toBe($group->getKey())
